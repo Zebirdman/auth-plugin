@@ -1,9 +1,10 @@
 
-FROM ubuntu
+FROM alpine
 
 RUN mkdir -p /run/docker/plugins/
+RUN mkdir -p /bin
 
 VOLUME /run/docker/plugins/
-ADD ./mountGuard  /bin/mountGuard
+ADD ./mount-guard  /bin/mount-guard
 
-ENTRYPOINT ["/bin/mountGuard"]
+ENTRYPOINT ["/bin/mount-guard"]

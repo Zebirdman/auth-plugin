@@ -1,16 +1,14 @@
 #!/bin/bash
 export PATH=$PATH:/usr/local/go/bin
-PLUGIN_NAME='mount-guard'
-SOURCE_DIR="/media/sf_VM_share/go_projects/auth_plugin/"
+PLUGIN_NAME="mount-guard"
+SOURCE_DIR="/home/zebirdman/go/src/auth-plugin/"
 
 monitor_source_files() {
   inotifywait "${SOURCE_DIR}"
 }
+
 update_build() {
-  ~/Documents/local-update.sh
-  cp -rf /media/sf_VM_share/go_projects/*  /home/ben/Documents/go_projects/
-  cp ~/Documents/go_projects/auth_plugin/* ~/go/src/plugin/
-  go build -o "${PLUGIN_name}" *.go
+  go build -o "${PLUGIN_NAME}" *.go
 }
 
 update_container() {
@@ -30,7 +28,7 @@ turn_auth_off() {
 }
 
 turn_auth_on() {
-  local auth_regex=`s|fd://|fd:// --authorization-plugin=${PLUGIN_NAME}|g`
+  local auth_regex='s|fd://|fd:// --authorization-plugin=mount-guard|g'
   sed -i -e "${auth_regex}" "/etc/systemd/system/docker.service"
   systemctl daemon-reload
   systemctl restart docker

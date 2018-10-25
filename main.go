@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/go-plugins-helpers/authorization"
 )
 
 type mountGuard struct {
-
 }
 
 func main() {
@@ -21,15 +21,13 @@ func main() {
 	}
 }
 
-
 func newPlugin() (*mountGuard, error) {
 	return &mountGuard{}, nil
 }
 
-
 func (p *mountGuard) AuthZReq(req authorization.Request) authorization.Response {
 
-	fmt.Println("\n[INFO] Request recieved, update: ")
+	fmt.Println("\n[INFO] Request recieved update: ")
 	/* test */
 
 	log.WithFields(log.Fields{
@@ -55,5 +53,3 @@ func (p *mountGuard) AuthZRes(req authorization.Request) authorization.Response 
 
 	return authorization.Response{Allow: true}
 }
-
-
