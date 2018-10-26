@@ -1,14 +1,16 @@
 #!/bin/bash
 export PATH=$PATH:/usr/local/go/bin
 PLUGIN_NAME="mount-guard"
-SOURCE_DIR="/home/zebirdman/go/src/auth-plugin/"
+SOURCE_DIR="/home/zebirdman/go/src/auth-plugin/main.go"
+BUILD_SUCCESS=0
 
 monitor_source_files() {
-  inotifywait "${SOURCE_DIR}"
+  inotifywait -e create,delete,modify "${SOURCE_DIR}"
 }
 
 update_build() {
-  go build -o "${PLUGIN_NAME}" *.go
+  CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -o "${PLUGIN_NAME}" *.go
+  BUILD_SUCCESS=$?
 }
 
 update_container() {
@@ -35,10 +37,16 @@ turn_auth_on() {
 }
 
 rebuild_plugin() {
-  turn_auth_off
+  
   update_build
-  update_container
-  turn_auth_on
+  if [ $BUILD_SUCCESS = 0 ]
+  then
+    turn_auth_off
+    update_container
+    turn_auth_on
+  else
+    echo "Build unsuccesful"
+  fi
 }
 
 while monitor_source_files; do
