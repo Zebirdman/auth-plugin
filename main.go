@@ -1,6 +1,5 @@
 package main
 
-//import "encoding/json"
 import (
 	"bytes"
 	"encoding/json"
@@ -17,8 +16,7 @@ import (
 const debug = true
 const policyDir = "/policies/"
 
-/*
-*  empty struct representing the plugin, we implement the
+/* empty struct representing the plugin, we implement the
 *  plugins required functions below
 **/
 type mountGuard struct{}
@@ -31,9 +29,11 @@ type configWrapper struct {
 	HostConfig *container.HostConfig
 }
 
+/* policy struct matches the format of the JSON policies themselves
+*  for easy unmarhsaling
+ */
 type policy struct {
 	User          string   `json:"user"`
-	Tty           bool     `json:"tty"`
 	AllowedMounts []string `json:"allowedMounts"`
 }
 
@@ -97,13 +97,16 @@ func checkBindPoints(r []string, a []string) (string, error) {
 func extractAllPolicies(files []os.FileInfo) []*policy {
 	var path strings.Builder
 	var policies []*policy
+	// iterate through all files in directory
 	for _, f := range files {
+		// make sure file is json
 		if strings.HasSuffix(f.Name(), ".json") {
 
 			log.WithFields(log.Fields{
 				"Name": f.Name(),
 			}).Info("JSON policy found")
 
+			// build full string path to file and append
 			path.WriteString(policyDir)
 			path.WriteString(f.Name())
 			policies = append(policies, extractPolicy(path.String()))
@@ -113,7 +116,8 @@ func extractAllPolicies(files []os.FileInfo) []*policy {
 	return policies
 }
 
-/* find which policy user matches request user and return policy
+/* find which policy user matches request user and return policy, if
+*  match isnt found a default policy is returned that allows no mounts
 *  @param p - policy array to be checked
 *  @param user - user name to be matched
 *  @return - matching policy as pointer and error if applicable
@@ -149,9 +153,14 @@ func (p *mountGuard) AuthZReq(req authorization.Request) authorization.Response 
 		handleErr(err, "Matching policy")
 
 		// log current policy and allowed mounts
-		log.WithFields(log.Fields{"User": policyMatch.User}).Info("Policy User")
+		log.WithFields(log.Fields{
+			"User": policyMatch.User,
+		}).Info("Policy User")
+
 		for _, element := range policyMatch.AllowedMounts {
-			log.WithFields(log.Fields{"Mount": element}).Info("Allowed Mounts")
+			log.WithFields(log.Fields{
+				"Mount": element,
+			}).Info("Allowed Mounts")
 		}
 
 		mnt, err := checkBindPoints(body.HostConfig.Binds, policyMatch.AllowedMounts)
@@ -178,11 +187,18 @@ func logResponse(req authorization.Request) {
 	if debug {
 		body := &configWrapper{}
 		json.NewDecoder(bytes.NewReader(req.RequestBody)).Decode(body)
-		log.WithFields(log.Fields{"Method": req.RequestMethod}).Info("Method field")
-		log.WithFields(log.Fields{"URI": req.RequestURI}).Info("URI field")
-		log.WithFields(log.Fields{"Image": body.Image}).Info("Struct-contents")
-		log.WithFields(log.Fields{"User": body.User}).Info("Struct-contents")
-		log.WithFields(log.Fields{"Tty": body.Tty}).Info("Struct-contents")
+
+		log.WithFields(log.Fields{
+			"URI": req.RequestURI,
+		}).Info("URI field")
+
+		log.WithFields(log.Fields{
+			"Image": body.Image,
+		}).Info("Struct-contents")
+
+		log.WithFields(log.Fields{
+			"User": body.User,
+		}).Info("Struct-contents")
 	}
 }
 
