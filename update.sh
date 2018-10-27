@@ -3,6 +3,7 @@ export PATH=$PATH:/usr/local/go/bin
 PLUGIN_NAME="mount-guard"
 SOURCE_DIR="/home/zebirdman/go/src/auth-plugin/main.go"
 BUILD_SUCCESS=0
+POLICY_DIR="/home/zebirdman/go/src/auth-plugin/policies/"
 
 monitor_source_files() {
   inotifywait -e create,delete,modify "${SOURCE_DIR}"
@@ -21,7 +22,9 @@ update_container() {
   docker rmi "${PLUGIN_NAME}"
   docker build -t "${PLUGIN_NAME}" .
   docker run -d --restart=always --name "${PLUGIN_NAME}" \
-    -v /run/docker/plugins/:/run/docker/plugins/ "${PLUGIN_NAME}"
+    -v /run/docker/plugins/:/run/docker/plugins/ \
+    -v "${POLICY_DIR}:/policies" \
+    "${PLUGIN_NAME}"
 }
 
 turn_auth_off() {

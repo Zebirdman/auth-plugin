@@ -1,0 +1,9 @@
+{
+  "user" : "zebirdman",
+  "tty" : true,
+  "allowedMounts": [
+    "/cont",
+    "/var/lib",
+    "/tmp"
+  ]
+}

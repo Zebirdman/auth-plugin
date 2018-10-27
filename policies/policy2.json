@@ -1,0 +1,8 @@
+{
+  "user" : "",
+  "tty" : true,
+  "allowedMounts": [
+    "/cont",
+    "/tmp"
+  ]
+}
