@@ -123,7 +123,7 @@ func extractAllPolicies(files []os.FileInfo) []*policy {
 *  @return - matching policy as pointer and error if applicable
 **/
 func matchPolicy(p []*policy, user string) (*policy, error) {
-	defPolicy := &policy{"", false, []string{}}
+	defPolicy := &policy{"", []string{}}
 
 	for _, pol := range p {
 		if pol.User == user {
