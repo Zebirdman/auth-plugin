@@ -2,6 +2,7 @@
   "user" : "",
   "allowedMounts": [
     "/cont",
-    "/tmp"
+    "/tmp",
+    "/var"
   ]
 }

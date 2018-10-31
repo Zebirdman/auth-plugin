@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-plugins-helpers/authorization"
+	"github.com/fsnotify/fsnotify"
 )
 
 const debug = true
@@ -19,7 +21,9 @@ const policyDir = "/policies/"
 /* empty struct representing the plugin, we implement the
 *  plugins required functions below
 **/
-type mountGuard struct{}
+type mountGuard struct {
+	Policies []policy
+}
 
 /* wrapper for holding data associated with container creation
 * see https://docs.docker.com/engine/api/v1.37/#operation/ContainerCreate
@@ -41,20 +45,63 @@ type policy struct {
 **/
 func main() {
 	plugin, err := newPlugin()
+
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer watcher.Close()
+
+	go func() {
+		for {
+			select {
+
+			case event := <-watcher.Events:
+
+				log.WithFields(log.Fields{
+					"Event": event,
+				}).Info("Policy watch event")
+
+				files, err := ioutil.ReadDir(policyDir)
+				handleErr(err, "File read")
+				plugin.extractAllPolicies(files)
+
+			case err := <-watcher.Errors:
+				log.WithFields(log.Fields{
+					"Error": err,
+				}).Error("Policy watch error")
+			}
+		}
+	}()
+
+	err = watcher.Add(policyDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.WithFields(log.Fields{
+		"Dir": policyDir,
+	}).Info("Policy watcher set up")
+
 	handler := authorization.NewHandler(plugin)
 	err = handler.ServeUnix("mount-guard", 0)
 	handleErr(err, "Serve unix")
+
 }
 
 func newPlugin() (*mountGuard, error) {
-	return &mountGuard{}, nil
+	p := &mountGuard{}
+	files, err := ioutil.ReadDir(policyDir)
+	handleErr(err, "File read")
+	p.extractAllPolicies(files)
+	return p, nil
 }
 
 /* extracts a JSON file into a policy structure returns pointer
 *  @param name - filename to be opened
 *  @return - pointer to the new policy struct
 **/
-func extractPolicy(name string) *policy {
+func extractPolicy(name string) policy {
 	// open file and set to close on func exit
 	jsonFile, err := os.Open(name)
 	handleErr(err, "Policy read")
@@ -62,7 +109,7 @@ func extractPolicy(name string) *policy {
 	// read json into byte array
 	byteValue, err := ioutil.ReadAll(jsonFile)
 	handleErr(err, "IO read")
-	usePol := &policy{}
+	usePol := policy{}
 	err = json.Unmarshal(byteValue, &usePol)
 	handleErr(err, "json unmarshall")
 	return usePol
@@ -94,9 +141,9 @@ func checkBindPoints(r []string, a []string) (string, error) {
 *  @param files - FileInfo array for all json policies
 *  @return - policy pointer array
 **/
-func extractAllPolicies(files []os.FileInfo) []*policy {
+func (plugin *mountGuard) extractAllPolicies(files []os.FileInfo) {
 	var path strings.Builder
-	var policies []*policy
+	var policies []policy
 	// iterate through all files in directory
 	for _, f := range files {
 		// make sure file is json
@@ -113,7 +160,7 @@ func extractAllPolicies(files []os.FileInfo) []*policy {
 			path.Reset()
 		}
 	}
-	return policies
+	plugin.Policies = policies
 }
 
 /* find which policy user matches request user and return policy, if
@@ -122,8 +169,8 @@ func extractAllPolicies(files []os.FileInfo) []*policy {
 *  @param user - user name to be matched
 *  @return - matching policy as pointer and error if applicable
 **/
-func matchPolicy(p []*policy, user string) (*policy, error) {
-	defPolicy := &policy{"", []string{}}
+func matchPolicy(p []policy, user string) (policy, error) {
+	defPolicy := policy{"", []string{}}
 
 	for _, pol := range p {
 		if pol.User == user {
@@ -138,18 +185,14 @@ func matchPolicy(p []*policy, user string) (*policy, error) {
 *  @param req - the docker authorization request object see API for details
 *  @return - auth.Response object to allow or disallow API calls to daemon
  */
-func (p *mountGuard) AuthZReq(req authorization.Request) authorization.Response {
+func (plugin *mountGuard) AuthZReq(req authorization.Request) authorization.Response {
 
 	if req.RequestBody != nil {
 		// extract request body into config structure
 		body := &configWrapper{}
 		json.NewDecoder(bytes.NewReader(req.RequestBody)).Decode(body)
 
-		files, err := ioutil.ReadDir(policyDir)
-		handleErr(err, "File read")
-
-		policies := extractAllPolicies(files)
-		policyMatch, err := matchPolicy(policies, body.User)
+		policyMatch, err := matchPolicy(plugin.Policies, body.User)
 		handleErr(err, "Matching policy")
 
 		// log current policy and allowed mounts
@@ -169,13 +212,17 @@ func (p *mountGuard) AuthZReq(req authorization.Request) authorization.Response 
 				"Mount": mnt,
 				"User":  policyMatch.User,
 			}).Warn("Illegal mount request")
-			return authorization.Response{Allow: false}
+			return authorization.Response{
+				Allow: false,
+				Msg:   fmt.Sprintf("Illegal mount request made (User: '%s' Mount: '%s'", policyMatch.User, mnt),
+			}
 		}
 	}
 	return authorization.Response{Allow: true}
 }
 
-func (p *mountGuard) AuthZRes(req authorization.Request) authorization.Response {
+/* always allow requests from the server */
+func (plugin *mountGuard) AuthZRes(req authorization.Request) authorization.Response {
 
 	return authorization.Response{Allow: true}
 }

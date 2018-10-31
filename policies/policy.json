@@ -2,7 +2,6 @@
   "user" : "zebirdman",
   "allowedMounts": [
     "/cont",
-    "/var/lib",
-    "/tmp"
+    "/var/lib"
   ]
 }
