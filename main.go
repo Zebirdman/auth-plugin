@@ -31,7 +31,7 @@ type configWrapper struct {
 
 /* policy struct matches the format of the JSON policies themselves
 *  for easy unmarhsaling
- */
+**/
 type policy struct {
 	User          string   `json:"user"`
 	AllowedMounts []string `json:"allowedMounts"`
